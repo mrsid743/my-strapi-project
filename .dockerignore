@@ -1,12 +1,9 @@
-# Don't copy node_modules from your local machine
-node_modules/
+# Ignore the node_modules folder inside your Strapi app
+strapi-app/node_modules
 
-# Strapi-specific files to ignore
-.cache/
-build/
-.tmp/
+# A more general rule is even better:
+**/node_modules
 
-# OS-specific
-.DS_Store
-Thumbs.db
-
+# Also ignore build artifacts from the app
+strapi-app/build
+strapi-app/.cache

@@ -1,29 +1,26 @@
-# Use an official Node.js runtime as a parent image
-# We use 'alpine' for a smaller image size
+# Use an appropriate Node.js base image
 FROM node:18-alpine
 
-# Set the working directory in the container
-WORKDIR /app
+# Set the working directory *inside* the container
+WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json (or yarn.lock)
-# We copy these first to take advantage of Docker's layer caching.
-# If these files don't change, Docker won't re-run 'npm install'
-COPY package.json ./
-COPY package-lock.json ./
-# If you use yarn, uncomment the line below and comment the one above
-# COPY yarn.lock ./
+# --- This is the key change ---
+# 1. Copy package files *from* the 'strapi-app' subfolder
+COPY strapi-app/package.json strapi-app/package-lock.json ./
 
-# Install app dependencies
+# 2. Install dependencies INSIDE the container
 RUN npm install
-# If you use yarn, uncomment the line below and comment the one above
-# RUN yarn install
 
-# Bundle app source
-COPY . .
+# 3. Copy the rest of your app code *from* the 'strapi-app' subfolder
+# This will respect your .dockerignore file
+COPY strapi-app/ .
+# -----------------------------
 
-# Strapi's default port
+# If your Strapi app needs to be built (Strapi usually does)
+RUN npm run build
+
+# Expose the Strapi port
 EXPOSE 1337
 
-# This command runs your app in development mode
-# It will automatically create the SQLite database inside the container
-CMD ["npm", "run", "develop"]
+# Command to run your app
+CMD ["npm", "run", "start"]
