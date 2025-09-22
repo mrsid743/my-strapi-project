@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: strapiuser
+      POSTGRES_PASSWORD: strapipassword
+      POSTGRES_DB: strapidb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - strapi-net
+    restart: unless-stopped
+
+  strapi:   # 👈 should be here (same level as postgres and nginx)
+    image: strapi/strapi:latest
+    container_name: strapi_app
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres_db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: strapidb
+      DATABASE_USERNAME: strapiuser
+      DATABASE_PASSWORD: strapipassword
+      DATABASE_SSL: 'false'
+      JWT_SECRET: 'a_very_long_and_secure_random_string'
+      ADMIN_JWT_SECRET: 'another_secure_random_string'
+      NODE_ENV: production
+      PORT: 1337
+    volumes:
+      - ./strapi-app:/srv/app
+    ports:                # 👈 you were missing this earlier
+      - "1337:1337"
+    networks:
+      - strapi-net
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - strapi-net
+    depends_on:
+      - strapi
+    restart: unless-stopped
+
+networks:
+  strapi-net:
+    driver: bridge
+
+volumes:
+  postgres-data:

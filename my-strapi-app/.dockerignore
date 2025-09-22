@@ -1,0 +1,12 @@
+# Don't copy node_modules from your local machine
+node_modules/
+
+# Strapi-specific files to ignore
+.cache/
+build/
+.tmp/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
