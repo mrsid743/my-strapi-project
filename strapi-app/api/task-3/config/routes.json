@@ -1,0 +1,52 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/task-3-s",
+      "handler": "task-3.find",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/task-3-s/count",
+      "handler": "task-3.count",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/task-3-s/:id",
+      "handler": "task-3.findOne",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/task-3-s",
+      "handler": "task-3.create",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/task-3-s/:id",
+      "handler": "task-3.update",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/task-3-s/:id",
+      "handler": "task-3.delete",
+      "config": {
+        "policies": []
+      }
+    }
+  ]
+}

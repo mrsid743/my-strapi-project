@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "task_3s",
+  "info": {
+    "name": "Task 3"
+  },
+  "options": {
+    "increments": true,
+    "timestamps": true,
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "richtext"
+    }
+  }
+}
