@@ -12,7 +12,6 @@ jobs:
     name: Deploy to AWS
     runs-on: ubuntu-latest
     
-    # These permissions are needed to read actions secrets and checkout code
     permissions:
       contents: read
       actions: read
@@ -36,20 +35,18 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1 # Your specified region
+          aws-region: ap-south-1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.7.5 # A specific, valid version
+          terraform_version: 1.7.5
 
       - name: Terraform Init
-        # Assumes your Terraform files are in a subfolder named 'terraform'
         working-directory: ./terraform
         run: terraform init
 
       - name: Terraform Apply
-        # Assumes your Terraform files are in a subfolder named 'terraform'
         working-directory: ./terraform
         # FIX: The command is now on a single line to prevent shell syntax errors.
         run: terraform apply -auto-approve -var="strapi_image_tag=${{ steps.image_tag.outputs.TAG }}" -var="dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}" -var="aws_region=ap-south-1"
