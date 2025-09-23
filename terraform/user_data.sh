@@ -1,29 +1,53 @@
-#!/bin/bash
-# This script is executed by the EC2 instance upon launch.
-# It installs Docker and runs the Strapi container.
+# .github/workflows/terraform.yml
+# This file contains the corrected syntax for the terraform apply command.
 
-# Exit immediately if a command exits with a non-zero status.
-set -euxo pipefail
+name: CD - Deploy to EC2 with Terraform
 
-# Update all installed packages
-yum update -y
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
-# Install Docker
-yum install docker -y
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      actions: read
 
-# Start the Docker service
-service docker start
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# Add the ec2-user to the docker group so you can execute Docker commands without sudo.
-usermod -a -G docker ec2-user
+      - name: Download image tag artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image_tag
+          path: .
 
-# --- Run Strapi Docker Container ---
+      - name: Read image tag
+        id: image_tag
+        run: echo "TAG=$(cat image_tag.txt)" >> $GITHUB_OUTPUT
 
-# Pull the Strapi image from Docker Hub.
-# Note: Login is not required for public repositories.
-docker pull ${dockerhub_username}/strapi-app:${strapi_image_tag}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
 
-# Run the Docker container
-# It maps port 1337 of the container to port 1337 on the host EC2 machine.
-# --restart always ensures the container restarts if it stops or the server reboots.
-docker run -d -p 1337:1337 --name strapi-app --restart always ${dockerhub_username}/strapi-app:${strapi_image_tag}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        # FIX: The command is now on a single line to prevent shell syntax errors.
+        run: terraform apply -auto-approve -var="strapi_image_tag=${{ steps.image_tag.outputs.TAG }}" -var="dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}" -var="aws_region=ap-south-1"
+
