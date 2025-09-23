@@ -1,50 +1,62 @@
-# .github/workflows/ci.yml
-# This is the corrected build workflow.
-# It now correctly creates and uploads the artifact needed for deployment.
+# .github/workflows/terraform.yml
+# This workflow now triggers automatically after the CI build succeeds.
 
-name: CI - Build & Push Strapi Docker Image
+name: CD - Deploy to EC2 with Terraform
 
+# This section makes the workflow run automatically
 on:
-  push:
+  workflow_run:
+    # The name of the workflow that must complete successfully
+    workflows: ["CI - Build & Push Strapi Docker Image"]
+    types:
+      - completed
     branches:
       - main
 
 jobs:
-  build-and-push:
+  deploy:
+    # This 'if' condition ensures this job only runs on SUCCESS of the CI workflow
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    name: Deploy to AWS
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      actions: read
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          # Using the secret names from your original file
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image
-        id: docker_build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          # Using a dynamic tag based on the commit SHA for unique versions
-          tags: ${{ secrets.DOCKER_USERNAME }}/strapi-app:${{ github.sha }}
-
-      # --- THIS IS THE CRITICAL FIX ---
-      # This step creates the artifact file needed by the deployment workflow
-      - name: Create image tag artifact
-        run: echo ${{ github.sha }} > image_tag.txt
-
-      # This step uploads the file so the next workflow can download it
-      - name: Upload image tag artifact
-        uses: actions/upload-artifact@v4
+      - name: Download image tag artifact
+        uses: actions/download-artifact@v4
         with:
           name: image_tag
-          path: image_tag.txt
+          # This tells the action to get the artifact from the CI run that triggered this workflow
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read image tag
+        id: image_tag
+        run: echo "TAG=$(cat image_tag.txt)" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve -var="strapi_image_tag=${{ steps.image_tag.outputs.TAG }}" -var="dockerhub_username=${{ secrets.DOCKER_USERNAME }}" -var="aws_region=ap-south-1"
 
