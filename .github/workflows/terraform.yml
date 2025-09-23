@@ -1,48 +1,50 @@
-name: CD - Deploy Strapi on EC2
+# .github/workflows/ci.yml
+# This is the corrected build workflow.
+# It now correctly creates and uploads the artifact needed for deployment.
+
+name: CI - Build & Push Strapi Docker Image
 
 on:
-  # Manual trigger
-  workflow_dispatch:
-
-  # Auto trigger when CI finishes successfully
-  workflow_run:
-    workflows: ["CI - Build and Push Strapi Image"] # must match ci.yml "name"
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-
-    # Run if CI succeeded OR if triggered manually
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.7.5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Download image tag
-        uses: actions/download-artifact@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          # Using the secret names from your original file
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        id: docker_build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # Using a dynamic tag based on the commit SHA for unique versions
+          tags: ${{ secrets.DOCKER_USERNAME }}/strapi-app:${{ github.sha }}
+
+      # --- THIS IS THE CRITICAL FIX ---
+      # This step creates the artifact file needed by the deployment workflow
+      - name: Create image tag artifact
+        run: echo ${{ github.sha }} > image_tag.txt
+
+      # This step uploads the file so the next workflow can download it
+      - name: Upload image tag artifact
+        uses: actions/upload-artifact@v4
         with:
           name: image_tag
+          path: image_tag.txt
 
-      - name: Read image tag
-        id: image
-        run: echo "tag=$(cat image_tag.txt)" >> $GITHUB_OUTPUT
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Plan
-        run: terraform plan -var="image_tag=${{ steps.image.outputs.tag }}"
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -var="image_tag=${{ steps.image.outputs.tag }}"
-
-      - name: Show EC2 Public IP
-        run: terraform output public_ip || echo "⚠️ No public_ip output found"
