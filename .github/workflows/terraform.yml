@@ -1,15 +1,10 @@
 name: CD - Deploy Strapi on EC2
 
 on:
-  workflow_dispatch:   # Manual trigger still works
-  workflow_run:        # Auto trigger after CI
-    workflows: ["CI - Build and Push Strapi Image"]
-    types:
-      - completed
+  workflow_dispatch:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
