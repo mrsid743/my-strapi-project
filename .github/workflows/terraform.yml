@@ -1,62 +1,41 @@
-# .github/workflows/terraform.yml
-# This workflow now triggers automatically after the CI build succeeds.
+# This workflow deploys the Strapi application to an EC2 instance using Terraform.
+# It is triggered manually.
 
-name: CD - Deploy to EC2 with Terraform
+name: CD - Deploy Strapi with Terraform
 
-# This section makes the workflow run automatically
 on:
-  workflow_run:
-    # The name of the workflow that must complete successfully
-    workflows: ["CI - Build & Push Strapi Docker Image"]
-    types:
-      - completed
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
 
 jobs:
   deploy:
-    # This 'if' condition ensures this job only runs on SUCCESS of the CI workflow
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    name: Deploy to AWS
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      actions: read
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Download image tag artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: image_tag
-          # This tells the action to get the artifact from the CI run that triggered this workflow
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-
-      - name: Read image tag
-        id: image_tag
-        run: echo "TAG=$(cat image_tag.txt)" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          aws-region: ap-south-1 # Changed to Mumbai region
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.7.5
+          terraform_version: 1.2.0
 
       - name: Terraform Init
-        working-directory: ./terraform
         run: terraform init
 
+      - name: Terraform Plan
+        run: terraform plan -var="strapi_image_tag=${{ github.event.inputs.image_tag }}"
+
       - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply -auto-approve -var="strapi_image_tag=${{ steps.image_tag.outputs.TAG }}" -var="dockerhub_username=${{ secrets.DOCKER_USERNAME }}" -var="aws_region=ap-south-1"
+        run: terraform apply -auto-approve -var="strapi_image_tag=${{ github.event.inputs.image_tag }}"
 
