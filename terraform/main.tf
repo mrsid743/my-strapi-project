@@ -1,6 +1,4 @@
-# terraform/main.tf
-# Configures the AWS provider and defines all the necessary infrastructure.
-
+# Defines the AWS provider and required version.
 terraform {
   required_providers {
     aws = {
@@ -10,26 +8,36 @@ terraform {
   }
 }
 
-# Configure the AWS Provider with the specified region
+# Configures the AWS provider with the specified region.
 provider "aws" {
   region = var.aws_region
 }
 
-# Create a security group to allow SSH and Strapi traffic
-resource "aws_security_group" "strapi_sg" {
-  name        = "strapi-security-group"
-  description = "Allow SSH and Strapi inbound traffic"
+# --- THIS IS THE FIX ---
+# Data source to dynamically find the latest Amazon Linux 2 AMI in the current region.
+# This avoids hardcoding a region-specific AMI ID.
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
 
-  # Allow incoming traffic on port 1337 (Strapi) from any IP
-  ingress {
-    from_port   = 1337
-    to_port     = 1337
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
 
-  # Allow incoming traffic on port 22 (SSH) from any IP
-  # For better security, you could restrict this to your own IP address
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Creates a security group to control traffic to the Strapi instance.
+resource "aws_security_group" "strapi_sg" {
+  name        = "strapi-security-group"
+  description = "Allow inbound traffic for Strapi and SSH"
+
+  # Allows SSH access from anywhere.
+  # For better security, you can restrict this to your IP address: cidr_blocks = ["YOUR_IP/32"]
   ingress {
     from_port   = 22
     to_port     = 22
@@ -37,7 +45,15 @@ resource "aws_security_group" "strapi_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all outbound traffic
+  # Allows access to the Strapi application from anywhere.
+  ingress {
+    from_port   = 1337
+    to_port     = 1337
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allows all outbound traffic.
   egress {
     from_port   = 0
     to_port     = 0
@@ -50,24 +66,23 @@ resource "aws_security_group" "strapi_sg" {
   }
 }
 
-# Define the EC2 instance
+# Creates the EC2 instance.
 resource "aws_instance" "strapi_server" {
-  # Using Amazon Linux 2 AMI for ap-south-1 region. Find the latest for your region.
-  ami           = "ami-0da59f1205226a751" 
-  instance_type = "t2.micro" # Free-tier eligible
+  # --- USE THE DYNAMIC AMI ID ---
+  ami           = data.aws_ami.amazon_linux_2.id # Uses the ID found by the data source.
+  instance_type = "t2.micro"                     # Free-tier eligible instance type.
 
-  # Associate the security group created above
+  # Associates the security group with the instance.
   vpc_security_group_ids = [aws_security_group.strapi_sg.id]
 
-  # The setup script to run on instance launch
-  # It uses the templatefile function to inject variables
+  # The user_data script is rendered using variables from the workflow.
   user_data = templatefile("${path.module}/user_data.sh", {
     strapi_image_tag   = var.strapi_image_tag
     dockerhub_username = var.dockerhub_username
   })
 
   tags = {
-    Name = "Strapi-Server-Deployed"
+    Name = "Strapi-Server"
   }
 }
 
