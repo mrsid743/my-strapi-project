@@ -1,24 +1,23 @@
-name: Build and Push Docker Image
+name: CI - Build and Push Strapi Docker Image
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      
-    outputs:
-      image: ${{ steps.build-image.outputs.image }}
+      id-token: write # Required for AWS OIDC authentication
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -26,22 +25,25 @@ jobs:
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: siddhant-strapi
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Create the ECR repository if it doesn't exist
-          aws ecr describe-repositories --repository-names $ECR_REPOSITORY >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name $ECR_REPOSITORY
+          # Build and tag the Docker image
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           
-          # Build and push the Docker image from the correct directory and Dockerfile path
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f my-strapi-app/strapi-app/Dockerfile ./my-strapi-app/strapi-app
-          
+          # Push the image to ECR
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          # Make the image tag available to other steps
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
+      - name: Print Image Tag
+        run: |
+          echo "Successfully built and pushed image with tag: ${{ steps.build-image.outputs.image_tag }}"
+          echo "Use this tag when running the 'Deploy to AWS' workflow."

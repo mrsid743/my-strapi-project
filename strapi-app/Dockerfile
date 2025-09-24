@@ -1,32 +1,58 @@
-# Dockerfile - Strapi (Node 18 LTS)
-FROM node:18-alpine
+# Stage 1: Build the Strapi application
+FROM node:18-alpine AS build
 
-# Create app directory
-WORKDIR /usr/src/app
+# Set the working directory
+WORKDIR /opt/app
 
-# Install build deps
-RUN apk add --no-cache python3 make g++ bash
-
-# Copy package.json and package-lock.json first (cache)
-COPY package*.json ./
+# Copy package.json and yarn.lock
+COPY package.json yarn.lock ./
 
 # Install dependencies
-RUN npm ci --legacy-peer-deps
+# Using --frozen-lockfile ensures we use the exact dependencies from yarn.lock
+RUN yarn install --frozen-lockfile
 
-# Copy rest of app
+# Copy the rest of the application source code
 COPY . .
 
-# Build admin UI (if using Strapi >4)
-RUN npm run build
+# Build the Strapi admin panel
+# The --no-optimization flag can be useful in low-memory environments
+RUN yarn build
 
-# Expose Strapi port
+# Stage 2: Create a smaller production image
+FROM node:18-alpine
+
+# Set the working directory
+WORKDIR /opt/app
+
+# Copy package.json and yarn.lock
+COPY package.json yarn.lock ./
+
+# Install only production dependencies
+RUN yarn install --production --frozen-lockfile
+
+# Copy the built application from the 'build' stage
+COPY --from=build /opt/app/dist ./dist
+COPY --from=build /opt/app/config ./config
+COPY --from=build /opt/app/database ./database
+COPY --from=build /opt/app/public ./public
+COPY --from=build /opt/app/src ./src
+COPY --from=build /opt/app/.strapi ./.strapi
+
+# Expose the port Strapi runs on
 EXPOSE 1337
 
-# Default environment (can be overridden via -e)
-ENV NODE_ENV=production
+# Set default environment variables for Strapi
+# These should be overridden in the `docker run` command for a real setup
+ENV HOST=0.0.0.0
 ENV PORT=1337
-# Use sqlite by default in container. For production, replace with DB envs.
-ENV DATABASE_CLIENT=sqlite
+ENV NODE_ENV=production
 
-# Start the app
-CMD ["npm", "start"]
+# These are placeholder values. You MUST provide these via environment variables
+# in the docker run command for security.
+ENV APP_KEYS="NmJRb4WyXDZirFykzpjc5g==,nKmOfuDBfdxXhcZFmGbiew==,ox+d6jdtd2DR8/ZKIqBObw==,afrDpX7TCT5Md8Jpg6ccmQ=="
+ENV API_TOKEN_SALT="hLiEiGF82uCn3Dapbzhoog=="
+ENV ADMIN_JWT_SECRET="3X28akYK0BgtH1QzhOYBpQ=="
+ENV JWT_SECRET="Zg7QRAfII0Qi3pI1XD6mmg=="
+
+# Start the Strapi application
+CMD ["yarn", "start"]
