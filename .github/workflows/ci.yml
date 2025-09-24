@@ -44,25 +44,3 @@ jobs:
           
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-```
-
-### Key Change:
-
-I have updated the `docker build` command inside `.github/workflows/ci.yml`:
-
-* **From:** `-f my-strapi-app/Dockerfile ./my-strapi-app`
-* **To:** `-f my-strapi-app/strapi-app/Dockerfile ./my-strapi-app/strapi-app`
-
-This tells the workflow to use the correct `Dockerfile` and the correct folder context for the build.
-
-### What to Do Next:
-
-1.  **Replace the content** of your `.github/workflows/ci.yml` file with the code above.
-2.  **Commit and push** this change.
-
-```bash
-git add .
-git commit -m "fix(ci): Point build to correct Dockerfile path"
-git push origin main
-
