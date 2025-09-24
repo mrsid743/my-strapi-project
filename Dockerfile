@@ -4,18 +4,18 @@ FROM node:18-alpine AS build
 # Set the working directory inside the container
 WORKDIR /opt/app
 
-# Copy package.json and package-lock.json to leverage Docker cache
+# Copy package.json and yarn.lock to leverage Docker cache
 COPY package.json ./
-COPY package-lock.json ./
+COPY yarn.lock ./
 
-# Install all dependencies (including devDependencies needed for the build)
-RUN npm install
+# Install all dependencies using yarn
+RUN yarn install --frozen-lockfile
 
 # Copy the rest of your Strapi application source code
 COPY . .
 
 # Build the Strapi admin panel for production
-RUN npm run build
+RUN yarn build
 
 # Stage 2: Create the final, smaller production image
 FROM node:18-alpine
@@ -23,12 +23,12 @@ FROM node:18-alpine
 # Set the working directory
 WORKDIR /opt/app
 
-# Copy package.json and package-lock.json again
+# Copy package.json and yarn.lock again
 COPY package.json ./
-COPY package-lock.json ./
+COPY yarn.lock ./
 
 # Install ONLY production dependencies to keep the image size small
-RUN npm install --production
+RUN yarn install --production --frozen-lockfile
 
 # Copy the built application artifacts from the 'build' stage
 COPY --from=build /opt/app/dist ./dist
@@ -44,5 +44,5 @@ COPY --from=build /opt/app/.strapi ./.strapi
 EXPOSE 1337
 
 # The command to start the Strapi application in production mode
-CMD ["npm", "run", "start"]
+CMD ["yarn", "start"]
 
