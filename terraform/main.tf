@@ -1,102 +1,74 @@
-#
-# --- AWS Configuration ---
-#
-
-variable "aws_region" {
-  description = "The AWS region to deploy resources in."
-  type        = string
-  default     = "ap-south-1"
+# Configure the AWS provider
+provider "aws" {
+  region = var.aws_region
 }
 
-variable "aws_key_pair_name" {
-  description = "The name of the EC2 key pair to use for SSH access."
-  type        = string
-  default     = "strapi-mumbai-key"
+# Get the AWS Account ID to construct the ECR URL
+data "aws_caller_identity" "current" {}
+
+# Get the latest Ubuntu 22.04 AMI for the specified region
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  owners = ["099720109477"] # Canonical's owner ID
 }
 
-#
-# --- Docker & Strapi Configuration ---
-#
-
-variable "image_tag" {
-  description = "The Docker image tag to deploy (provided by GitHub Actions)."
-  type        = string
+# Create an IAM role for the EC2 instance to allow ECR access
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-strapi-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
 }
 
-#
-# --- Strapi Environment Variables (Secrets) ---
-# NOTE: These are placeholders. You should override these with secure values.
-#
-
-variable "strapi_app_keys" {
-  description = "Strapi application keys for security."
-  type        = string
-  sensitive   = true
-  default     = "changeThisKey1,andThisKey2AsWell" # Replace with generated keys
+# Attach the AmazonEC2ContainerRegistryReadOnly policy to the role
+resource "aws_iam_role_policy_attachment" "ecr_readonly_policy" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-variable "strapi_api_token_salt" {
-  description = "Salt for API tokens."
-  type        = string
-  sensitive   = true
-  default     = "changeThisSalt" # Replace with generated salt
+# Create an instance profile to attach the role to the EC2 instance
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "ec2-strapi-instance-profile"
+  role = aws_iam_role.ec2_role.name
 }
 
-variable "strapi_admin_jwt_secret" {
-  description = "JWT secret for the admin panel."
-  type        = string
-  sensitive   = true
-  default     = "changeThisAdminSecret" # Replace with generated secret
-}
+# Define the EC2 instance
+resource "aws_instance" "strapi_server" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = var.ssh_key_name
+  vpc_security_group_ids = [var.security_group_id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
 
-variable "strapi_jwt_secret" {
-  description = "JWT secret for user sessions."
-  type        = string
-  sensitive   = true
-  default     = "changeThisJwtSecret" # Replace with generated secret
-}
+  # The user data script is rendered from a template file
+  user_data = templatefile("${path.module}/user_data.tftpl", {
+    aws_region     = var.aws_region,
+    ecr_repo_url   = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repo_name}",
+    image_tag      = var.image_tag
+  })
 
+  tags = {
+    Name = "Strapi-Server-Instance"
+  }
 
-#
-# --- Strapi Database Configuration ---
-# NOTE: Using placeholder values for a simple SQLite setup.
-# For production, you would connect to a managed database like RDS.
-#
-
-variable "strapi_database_client" {
-  description = "The database client for Strapi."
-  type        = string
-  default     = "sqlite"
-}
-
-variable "strapi_database_host" {
-  description = "The database host."
-  type        = string
-  default     = "127.0.0.1" # Not used by SQLite
-}
-
-variable "strapi_database_port" {
-  description = "The database port."
-  type        = number
-  default     = 5432 # Not used by SQLite
-}
-
-variable "strapi_database_name" {
-  description = "The database name."
-  type        = string
-  default     = "strapi"
-}
-
-variable "strapi_database_username" {
-  description = "The database username."
-  type        = string
-  default     = "strapi"
-}
-
-variable "strapi_database_password" {
-  description = "The database password."
-  type        = string
-  sensitive   = true
-  default     = "strapi"
+  # Wait for the IAM profile to be ready before launching the instance
+  depends_on = [aws_iam_instance_profile.ec2_instance_profile]
 }
 
