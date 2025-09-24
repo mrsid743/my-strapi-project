@@ -1,13 +1,19 @@
 variable "aws_region" {
-  description = "The AWS region to deploy the resources in."
+  description = "The AWS region to deploy resources in."
   type        = string
   default     = "ap-south-1"
 }
 
 variable "ecr_repository_name" {
-  description = "The name for the Amazon ECR repository."
+  description = "The name of the ECR repository."
   type        = string
   default     = "siddhant-strapi"
+}
+
+variable "aws_key_pair_name" {
+  description = "The name of the EC2 key pair to use for SSH access."
+  type        = string
+  default     = "strapi-mumbai-key"
 }
 
 variable "ec2_instance_type" {
@@ -16,49 +22,45 @@ variable "ec2_instance_type" {
   default     = "t2.micro"
 }
 
-variable "aws_key_pair_name" {
-  description = "Name of the AWS EC2 Key Pair to use for SSH access. IMPORTANT: You must create this in the AWS console first."
+variable "image_tag" {
+  description = "The Docker image tag to deploy. This is passed from the CI workflow."
   type        = string
-  # IMPORTANT: Change this default value to your actual key pair name!
-  default     = "strapi-mumbai-key"
 }
 
-variable "image_tag" {
-  description = "The Docker image tag (commit SHA) to pull from ECR."
+variable "existing_iam_instance_profile_name" {
+  description = "The name of the pre-existing IAM Instance Profile for the EC2 instance."
   type        = string
-  default     = "latest" # This default is a fallback, the workflow will override it.
 }
 
 # --- Strapi Application Secrets ---
-# For a production setup, it's highly recommended to manage these secrets using
-# AWS Secrets Manager or Parameter Store instead of plain text variables.
+# These should be long, random, unique strings.
+# You can generate them with: openssl rand -base64 32
 
 variable "strapi_app_keys" {
-  description = "Comma-separated list of application keys for Strapi."
+  description = "Comma-separated list of secret keys for Strapi."
   type        = string
   sensitive   = true
-  # Generate strong random keys for your actual application
-  default = "changeThisKey1,andThisKey2AsWell"
+  default     = "changeThisKey1,andThisKey2AsWell"
 }
 
 variable "strapi_api_token_salt" {
-  description = "API token salt for Strapi."
+  description = "Salt for API tokens."
   type        = string
   sensitive   = true
-  default     = "aStrongAndRandomApiTokenSalt"
+  default     = "changeThisSalt"
 }
 
 variable "strapi_admin_jwt_secret" {
-  description = "Admin JWT secret for Strapi."
+  description = "JWT secret for the admin panel."
   type        = string
   sensitive   = true
-  default     = "aStrongAndRandomAdminJwtSecret"
+  default     = "changeThisAdminSecret"
 }
 
 variable "strapi_jwt_secret" {
-  description = "JWT secret for Strapi."
+  description = "JWT secret for API users."
   type        = string
   sensitive   = true
-  default     = "aStrongAndRandomJwtSecret"
+  default     = "changeThisJwtSecret"
 }
 
