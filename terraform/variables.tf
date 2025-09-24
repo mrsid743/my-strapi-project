@@ -27,11 +27,6 @@ variable "image_tag" {
   type        = string
 }
 
-variable "existing_iam_instance_profile_name" {
-  description = "The name of the pre-existing IAM Instance Profile for the EC2 instance."
-  type        = string
-}
-
 # --- Strapi Application Secrets ---
 # These should be long, random, unique strings.
 # You can generate them with: openssl rand -base64 32
