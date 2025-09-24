@@ -71,7 +71,7 @@ data "aws_subnets" "default_public" {
 
 # Create a security group to control traffic to the EC2 instance
 resource "aws_security_group" "strapi_sg" {
-  name        = "strapi-sg"
+  name        = "strapi-siddhant"
   description = "Allow SSH, HTTP, and Strapi traffic"
   vpc_id      = data.aws_vpc.default.id
 
