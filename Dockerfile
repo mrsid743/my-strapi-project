@@ -1,14 +1,14 @@
 # Stage 1: Build the Strapi application
 FROM node:18-alpine AS build
 
-# Set the working directory TO YOUR SUBDIRECTORY
+# Set the working directory
 WORKDIR /opt/app
 
 # Copy package.json and package-lock.json from the subdirectory
 COPY my-strapi-app/package.json my-strapi-app/package-lock.json ./
 
-# Install dependencies using npm ci for reproducible builds
-RUN npm ci
+# Install dependencies using npm ci for reproducible builds, ignoring peer dependency conflicts
+RUN npm ci --legacy-peer-deps
 
 # Copy the rest of the application source code from the subdirectory
 COPY my-strapi-app/ .
@@ -25,8 +25,8 @@ WORKDIR /opt/app
 # Copy package.json and package-lock.json from the build stage's subdirectory context
 COPY my-strapi-app/package.json my-strapi-app/package-lock.json ./
 
-# Install only production dependencies
-RUN npm ci --omit=dev
+# Install only production dependencies, ignoring peer dependency conflicts
+RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy the built application from the 'build' stage
 COPY --from=build /opt/app/dist ./dist
