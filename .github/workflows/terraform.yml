@@ -1,0 +1,45 @@
+name: CD - Deploy to EC2 with Terraform
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy with Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Terraform Init
+        id: init
+        run: terraform -chdir=./terraform init
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform -chdir=./terraform plan \
+            -var="image_tag=${{ github.sha }}" \
+            -var="security_group_id=${{ secrets.SECURITY_GROUP_ID }}" \
+            -var="ssh_key_name=${{ secrets.SSH_KEY_NAME }}"
+        continue-on-error: true
+
+      - name: Terraform Apply
+        id: apply
+        run: |
+          terraform -chdir=./terraform apply -auto-approve \
+            -var="image_tag=${{ github.sha }}" \
+            -var="security_group_id=${{ secrets.SECURITY_GROUP_ID }}" \
+            -var="ssh_key_name=${{ secrets.SSH_KEY_NAME }}"
+
