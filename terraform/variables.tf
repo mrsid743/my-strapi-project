@@ -20,7 +20,7 @@ variable "aws_key_pair_name" {
   description = "Name of the AWS EC2 Key Pair to use for SSH access. IMPORTANT: You must create this in the AWS console first."
   type        = string
   # IMPORTANT: Change this default value to your actual key pair name!
-  default     = "your-key-pair-name"
+  default     = "strapi-mumbai-key"
 }
 
 variable "image_tag" {
@@ -61,3 +61,4 @@ variable "strapi_jwt_secret" {
   sensitive   = true
   default     = "aStrongAndRandomJwtSecret"
 }
+
