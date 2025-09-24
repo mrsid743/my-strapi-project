@@ -21,7 +21,7 @@ resource "aws_ecr_repository" "strapi" {
   }
 }
 
-# IAM role and instance profile so the EC2 instance can pull from ECR
+# IAM role and instance profile for EC2 -> ECR
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -75,9 +75,9 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 
 # Optional: create key pair if ssh_public_key provided
 resource "aws_key_pair" "strapi_key" {
-  count       = var.ssh_public_key != "" ? 1 : 0
-  key_name    = var.ssh_key_name
-  public_key  = var.ssh_public_key
+  count      = var.ssh_public_key != "" ? 1 : 0
+  key_name   = var.ssh_key_name
+  public_key = var.ssh_public_key
 }
 
 # Security group: allow SSH and Strapi port (1337)
@@ -114,13 +114,16 @@ resource "aws_security_group" "strapi_sg" {
   }
 }
 
-# Get default VPC and subnet (assumes default VPC exists in account)
+# Get default VPC and subnets
 data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnet_ids" "default_subnets" {
-  vpc_id = data.aws_vpc.default.id
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 # Get latest Amazon Linux 2 AMI if not provided
@@ -136,7 +139,7 @@ data "aws_ami" "amazon_linux" {
 resource "aws_instance" "strapi" {
   ami                         = var.ami != "" ? var.ami : data.aws_ami.amazon_linux.id
   instance_type               = var.instance_type
-  subnet_id                   = element(data.aws_subnet_ids.default_subnets.ids, 0)
+  subnet_id                   = element(data.aws_subnets.default.ids, 0)
   vpc_security_group_ids      = [aws_security_group.strapi_sg.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
   key_name                    = var.ssh_key_name
@@ -151,18 +154,4 @@ resource "aws_instance" "strapi" {
   tags = {
     Name = "strapi-ec2-instance"
   }
-}
-
-output "public_ip" {
-  description = "Public IP of the EC2 instance"
-  value       = aws_instance.strapi.public_ip
-}
-
-output "ecr_repo_url" {
-  description = "ECR repository URI"
-  value       = aws_ecr_repository.strapi.repository_url
-}
-
-output "instance_id" {
-  value = aws_instance.strapi.id
 }
