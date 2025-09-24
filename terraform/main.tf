@@ -22,7 +22,7 @@ resource "aws_ecr_repository" "strapi_ecr_repo" {
 # --- IAM ---
 # Create an IAM role that the EC2 instance will assume
 resource "aws_iam_role" "ec2_role" {
-  name = "ec2-strapi-role"
+  name = "${var.ecr_repository_name}-role"
 
   assume_role_policy = jsonencode({
     Version   = "2012-10-17"
@@ -46,7 +46,7 @@ resource "aws_iam_role_policy_attachment" "ecr_read_policy_attachment" {
 
 # Create an instance profile to attach the role to the EC2 instance
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "ec2-strapi-instance-profile"
+  name = "${var.ecr_repository_name}-instance-profile"
   role = aws_iam_role.ec2_role.name
 }
 
@@ -71,7 +71,7 @@ data "aws_subnets" "default_public" {
 
 # Create a security group to control traffic to the EC2 instance
 resource "aws_security_group" "strapi_sg" {
-  name        = "strapi-sg"
+  name        = "${var.ecr_repository_name}-sg"
   description = "Allow SSH, HTTP, and Strapi traffic"
   vpc_id      = data.aws_vpc.default.id
 
@@ -108,7 +108,7 @@ resource "aws_security_group" "strapi_sg" {
   }
 
   tags = {
-    Name = "strapi-security-group"
+    Name = "${var.ecr_repository_name}-security-group"
   }
 }
 
@@ -183,3 +183,4 @@ resource "aws_instance" "strapi_server" {
     create_before_destroy = true
   }
 }
+
