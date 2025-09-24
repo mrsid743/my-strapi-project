@@ -4,12 +4,13 @@ FROM node:18-alpine AS build
 # Set the working directory inside the container
 WORKDIR /opt/app
 
-# Copy package.json and yarn.lock to leverage Docker cache
+# Copy package.json to leverage Docker cache
+# We are not copying yarn.lock to make the build more resilient
+# in case the lock file is not committed to the repository.
 COPY package.json ./
-COPY yarn.lock ./
 
-# Install all dependencies using yarn
-RUN yarn install --frozen-lockfile
+# Install all dependencies using yarn. This will generate a yarn.lock file inside the container.
+RUN yarn install
 
 # Copy the rest of your Strapi application source code
 COPY . .
@@ -23,12 +24,11 @@ FROM node:18-alpine
 # Set the working directory
 WORKDIR /opt/app
 
-# Copy package.json and yarn.lock again
+# Copy package.json again
 COPY package.json ./
-COPY yarn.lock ./
 
 # Install ONLY production dependencies to keep the image size small
-RUN yarn install --production --frozen-lockfile
+RUN yarn install --production
 
 # Copy the built application artifacts from the 'build' stage
 COPY --from=build /opt/app/dist ./dist
