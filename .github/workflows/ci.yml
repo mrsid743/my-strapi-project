@@ -1,25 +1,28 @@
-name: CI - Build and Push Strapi Image
+name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
-  build-and-push-to-ecr:
-    name: Build and Push to ECR
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
 
     steps:
-      - name: Check out the repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_IAM_ROLE_NAME }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -35,9 +38,31 @@ jobs:
           # Create the ECR repository if it doesn't exist
           aws ecr describe-repositories --repository-names $ECR_REPOSITORY >/dev/null 2>&1 || \
             aws ecr create-repository --repository-name $ECR_REPOSITORY
-
-          # Build and push the Docker image from the my-strapi-app directory
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f my-strapi-app/Dockerfile ./my-strapi-app
+          
+          # Build and push the Docker image from the correct directory and Dockerfile path
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f my-strapi-app/strapi-app/Dockerfile ./my-strapi-app/strapi-app
+          
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+```
+
+### Key Change:
+
+I have updated the `docker build` command inside `.github/workflows/ci.yml`:
+
+* **From:** `-f my-strapi-app/Dockerfile ./my-strapi-app`
+* **To:** `-f my-strapi-app/strapi-app/Dockerfile ./my-strapi-app/strapi-app`
+
+This tells the workflow to use the correct `Dockerfile` and the correct folder context for the build.
+
+### What to Do Next:
+
+1.  **Replace the content** of your `.github/workflows/ci.yml` file with the code above.
+2.  **Commit and push** this change.
+
+```bash
+git add .
+git commit -m "fix(ci): Point build to correct Dockerfile path"
+git push origin main
 
