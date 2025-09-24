@@ -1,38 +1,46 @@
-name: CD - Deploy to AWS with Terraform
+name: 'Deploy to AWS'
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'The Docker image tag (commit SHA) to deploy'
+        description: 'Image tag to deploy'
         required: true
-        type: string
+        default: 'latest'
 
 jobs:
-  terraform-deploy:
-    name: 'Terraform Deploy'
+  terraform:
+    name: 'Terraform'
     runs-on: ubuntu-latest
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # Pass the image tag from the workflow dispatch input to Terraform as a variable
       TF_VAR_image_tag: ${{ github.event.inputs.image_tag }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.2.0
 
       - name: Terraform Init
         id: init
+        # Run all Terraform commands in the 'terraform' subdirectory
+        working-directory: ./terraform
         run: terraform init
 
       - name: Terraform Plan
         id: plan
+        working-directory: ./terraform
         run: terraform plan -no-color
 
       - name: Terraform Apply
         id: apply
-        # Run apply only when the user confirms the deployment from the GitHub UI
-        run: terraform apply -auto-approve
+        working-directory: ./terraform
+        # The -auto-approve flag is used for CI/CD pipelines to apply without manual confirmation
+        run: terraform apply -auto-approve -no-color
+
