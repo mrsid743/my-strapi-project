@@ -18,39 +18,6 @@ resource "aws_ecr_repository" "strapi_ecr_repo" {
   }
 }
 
-
-# --- IAM ---
-# Create an IAM role that the EC2 instance will assume
-resource "aws_iam_role" "ec2_role" {
-  name = "${var.ecr_repository_name}-role"
-
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [
-      {
-        Action    = "sts:AssumeRole"
-        Effect    = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# Attach a policy to the role that allows pulling images from ECR
-resource "aws_iam_role_policy_attachment" "ecr_read_policy_attachment" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-# Create an instance profile to attach the role to the EC2 instance
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "${var.ecr_repository_name}-instance-profile"
-  role = aws_iam_role.ec2_role.name
-}
-
-
 # --- Networking ---
 # Use the default VPC for simplicity
 data "aws_vpc" "default" {
@@ -129,7 +96,8 @@ resource "aws_instance" "strapi_server" {
   ami                         = data.aws_ami.amazon_linux_2.id
   instance_type               = var.ec2_instance_type
   key_name                    = var.aws_key_pair_name
-  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+  # Use the pre-existing IAM instance profile provided via a variable
+  iam_instance_profile        = var.existing_iam_instance_profile_name
   vpc_security_group_ids      = [aws_security_group.strapi_sg.id]
   # Launch in the first available public subnet
   subnet_id                   = element(data.aws_subnets.default_public.ids, 0)
@@ -155,8 +123,6 @@ resource "aws_instance" "strapi_server" {
               docker rm strapi || true
               
               # Pull the specified image from ECR and run it
-              # NOTE: You MUST configure these environment variables for a secure production setup.
-              # Consider using AWS Secrets Manager or Parameter Store for this.
               docker run -d -p 1337:1337 \
                 --name strapi \
                 --restart always \
