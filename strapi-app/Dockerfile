@@ -1,21 +1,32 @@
-# ---- Production Stage ----
-FROM node:18-alpine AS production
+# Dockerfile - Strapi (Node 18 LTS)
+FROM node:18-alpine
 
-WORKDIR /app
+# Create app directory
+WORKDIR /usr/src/app
 
-ENV NODE_ENV=production
+# Install build deps
+RUN apk add --no-cache python3 make g++ bash
 
-# Copy only package files first
-COPY --from=builder /app/package*.json ./
+# Copy package.json and package-lock.json first (cache)
+COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --omit=dev --legacy-peer-deps
+# Install dependencies
+RUN npm ci --legacy-peer-deps
 
-# Copy build artifacts from builder
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/.cache ./.cache
+# Copy rest of app
+COPY . .
 
+# Build admin UI (if using Strapi >4)
+RUN npm run build
+
+# Expose Strapi port
 EXPOSE 1337
 
-CMD ["npm", "run", "start"]
+# Default environment (can be overridden via -e)
+ENV NODE_ENV=production
+ENV PORT=1337
+# Use sqlite by default in container. For production, replace with DB envs.
+ENV DATABASE_CLIENT=sqlite
+
+# Start the app
+CMD ["npm", "start"]
