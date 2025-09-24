@@ -1,22 +1,20 @@
 # Stage 1: Build the Strapi application
 FROM node:18-alpine AS build
 
-# Set the working directory
+# Set the working directory TO YOUR SUBDIRECTORY
 WORKDIR /opt/app
 
-# Copy package.json and yarn.lock
-COPY package.json yarn.lock ./
+# Copy package.json and package-lock.json from the subdirectory
+COPY my-strapi-app/package.json my-strapi-app/package-lock.json ./
 
-# Install dependencies
-# Using --frozen-lockfile ensures we use the exact dependencies from yarn.lock
-RUN yarn install --frozen-lockfile
+# Install dependencies using npm ci for reproducible builds
+RUN npm ci
 
-# Copy the rest of the application source code
-COPY . .
+# Copy the rest of the application source code from the subdirectory
+COPY my-strapi-app/ .
 
 # Build the Strapi admin panel
-# The --no-optimization flag can be useful in low-memory environments
-RUN yarn build
+RUN npm run build
 
 # Stage 2: Create a smaller production image
 FROM node:18-alpine
@@ -24,11 +22,11 @@ FROM node:18-alpine
 # Set the working directory
 WORKDIR /opt/app
 
-# Copy package.json and yarn.lock
-COPY package.json yarn.lock ./
+# Copy package.json and package-lock.json from the build stage's subdirectory context
+COPY my-strapi-app/package.json my-strapi-app/package-lock.json ./
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile
+RUN npm ci --omit=dev
 
 # Copy the built application from the 'build' stage
 COPY --from=build /opt/app/dist ./dist
@@ -55,4 +53,5 @@ ENV ADMIN_JWT_SECRET="3X28akYK0BgtH1QzhOYBpQ=="
 ENV JWT_SECRET="Zg7QRAfII0Qi3pI1XD6mmg=="
 
 # Start the Strapi application
-CMD ["yarn", "start"]
+CMD ["npm", "run", "start"]
+
