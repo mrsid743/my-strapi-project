@@ -1,26 +1,28 @@
-# Use an appropriate Node.js base image
+# Dockerfile for Strapi
 FROM node:18-alpine
 
-# Set the working directory *inside* the container
-WORKDIR /usr/src/app
+# Installing dependencies
+RUN apk add --no-cache build-base gcc autoconf automake zlib-dev libpng-dev vips-dev > /dev/null 2>&1
 
-# --- This is the key change ---
-# 1. Copy package files *from* the 'strapi-app' subfolder
-COPY strapi-app/package.json strapi-app/package-lock.json ./
+# Set working directory
+WORKDIR /opt/
 
-# 2. Install dependencies INSIDE the container
-RUN npm install
+# Copy package.json and yarn.lock
+COPY ./package.json ./yarn.lock ./
 
-# 3. Copy the rest of your app code *from* the 'strapi-app' subfolder
-# This will respect your .dockerignore file
-COPY strapi-app/ .
-# -----------------------------
+# Install dependencies
+RUN yarn config set network-timeout 600000 -g && yarn install --frozen-lockfile
 
-# If your Strapi app needs to be built (Strapi usually does)
-RUN npm run build
+# Set environment
+ENV NODE_ENV=production
 
-# Expose the Strapi port
+# Copy your project files
+WORKDIR /opt/app
+COPY . .
+
+# Build the Strapi app
+RUN yarn build
+
+# Expose the Strapi port and start the app
 EXPOSE 1337
-
-# Command to run your app
-CMD ["npm", "run", "start"]
+CMD ["yarn", "start"]

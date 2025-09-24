@@ -1,41 +1,56 @@
-# This GitHub Actions workflow automates building the Strapi Docker image
-# and pushing it to Amazon Elastic Container Registry (ECR).
+# This GitHub Actions workflow automates the process of building a Docker image
+# for the Strapi application, tagging it, and pushing it to AWS ECR.
+# It is triggered on every push to the 'main' branch.
 
-name: Strapi CI - Build and Push Docker Image
+name: CI - Build and Push Strapi Image
 
 on:
   push:
     branches:
       - main
 
+# Environment variables available to all jobs
+env:
+  ECR_REPOSITORY: strappi-siddhant
+  AWS_REGION: ap-south-1 # Mumbai
+
 jobs:
   build-and-push:
+    name: Build and Push to ECR
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.build-image.outputs.image_tag }}
+
+    permissions:
+      contents: read
+      id-token: write # Required for configuring AWS credentials
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1 # Changed to Mumbai region
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: strapi-app # Name your ECR repository
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.sha }} # Use the commit SHA for a unique tag
+          LATEST_TAG: latest # Also tag as 'latest' for easy deployment
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # Build the docker image and tag it with the commit SHA and 'latest'
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG .
+          
+          # Push both tags to ECR
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image_tag=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+          
+          # Output the image URI for other jobs or reference
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG" >> $GITHUB_OUTPUT
