@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "ecr_repository_name" {
-  description = "The name of the ECR repository."
+  description = "The name of the existing ECR repository."
   type        = string
   default     = "siddhant-strapi"
 }
@@ -28,10 +28,14 @@ variable "image_tag" {
 }
 
 variable "existing_iam_instance_profile_name" {
-  description = "Optional: Use an existing IAM Instance Profile for the EC2 instance instead of creating a new one."
+  description = "The name of the pre-existing IAM Instance Profile for the EC2 instance."
   type        = string
-  default     = ""
 }
+
+
+# --- Strapi Application Secrets ---
+# These should be long, random, unique strings.
+# You can generate them with: openssl rand -base64 32
 
 variable "strapi_app_keys" {
   description = "Comma-separated list of secret keys for Strapi."
@@ -60,3 +64,4 @@ variable "strapi_jwt_secret" {
   sensitive   = true
   default     = "changeThisJwtSecret"
 }
+
