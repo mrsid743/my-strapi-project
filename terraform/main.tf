@@ -93,7 +93,7 @@ resource "aws_instance" "strapi_server" {
   # Use the pre-existing IAM Instance Profile
   iam_instance_profile        = var.existing_iam_instance_profile_name
 
-  user_data = templatefile("${path.module}/user_data.tftpl", {
+  user_data = templatefile("${path.module}/user_data.tpl", {
     aws_region                = var.aws_region
     aws_account_id            = data.aws_caller_identity.current.account_id
     ecr_repository_name       = var.ecr_repository_name
