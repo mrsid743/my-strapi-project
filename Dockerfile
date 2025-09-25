@@ -8,6 +8,9 @@ WORKDIR /opt/app
 # FIX: Copy files from the root context, not a subdirectory
 COPY package.json package-lock.json ./
 
+# FIX: Install a compatible version of AJV before other dependencies to prevent build errors
+RUN npm install ajv@6
+
 # Install dependencies using npm ci for reproducible builds, ignoring peer dependency conflicts
 RUN npm ci --legacy-peer-deps
 
@@ -27,6 +30,9 @@ WORKDIR /opt/app
 # Copy package.json and package-lock.json from the build stage
 # FIX: Copy files from the root context of the build stage
 COPY package.json package-lock.json ./
+
+# FIX: Install a compatible version of AJV before other dependencies
+RUN npm install ajv@6
 
 # Install only production dependencies, ignoring peer dependency conflicts
 RUN npm ci --omit=dev --legacy-peer-deps
