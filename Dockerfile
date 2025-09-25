@@ -24,21 +24,23 @@ FROM node:18-alpine
 WORKDIR /opt/app
 
 # Copy package.json and package-lock.json from the build stage
-COPY package.json package-lock.json ./
+COPY --from=build /opt/app/package.json ./package.json
+COPY --from=build /opt/app/package-lock.json ./package-lock.json
+
 
 # Install only production dependencies, ignoring peer dependency conflicts
 # The 'ajv' version is now handled by the 'overrides' in package.json
 RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy the built application from the 'build' stage
-COPY --from-build /opt/app/dist ./dist
+COPY --from=build /opt/app/dist ./dist
 
 # Copy the Strapi configuration and other necessary folders from the 'build' stage
-COPY --from-build /opt/app/config ./config
-COPY --from-build /opt/app/database ./database
-COPY --from-build /opt/app/public ./public
-COPY --from-build /opt/app/src ./src
-COPY --from-build /opt/app/.strapi ./.strapi
+COPY --from=build /opt/app/config ./config
+COPY --from=build /opt/app/database ./database
+COPY --from=build /opt/app/public ./public
+COPY --from=build /opt/app/src ./src
+COPY --from=build /opt/app/.strapi ./.strapi
 
 
 # Set environment variables for Strapi
