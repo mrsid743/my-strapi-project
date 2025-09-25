@@ -7,9 +7,9 @@ WORKDIR /opt/app
 # Copy package.json and package-lock.json
 COPY package.json package-lock.json ./
 
-# Install dependencies using npm ci for reproducible builds, ignoring peer dependency conflicts
-# The 'ajv' version is now handled by the 'overrides' in package.json
-RUN npm ci --legacy-peer-deps
+# Install dependencies using npm install for better dependency resolution in CI
+# The 'ajv' version is still handled by the 'overrides' in package.json
+RUN npm install --legacy-peer-deps
 
 # Copy the rest of the application source code
 COPY . .
@@ -27,10 +27,9 @@ WORKDIR /opt/app
 COPY --from=build /opt/app/package.json ./package.json
 COPY --from=build /opt/app/package-lock.json ./package-lock.json
 
-
-# Install only production dependencies, ignoring peer dependency conflicts
-# The 'ajv' version is now handled by the 'overrides' in package.json
-RUN npm ci --omit=dev --legacy-peer-deps
+# Install only production dependencies
+# Using npm install here as well for consistency
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Copy the built application from the 'build' stage
 COPY --from=build /opt/app/dist ./dist
