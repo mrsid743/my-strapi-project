@@ -1,7 +1,3 @@
-#####################################
-# General Variables
-#####################################
-
 variable "aws_region" {
   description = "The AWS region to deploy resources in."
   type        = string
@@ -31,19 +27,11 @@ variable "image_tag" {
   type        = string
 }
 
-#####################################
-# IAM Instance Profile
-#####################################
-
 variable "existing_iam_instance_profile_name" {
-  description = "Optional: Use an existing IAM Instance Profile for the EC2 instance instead of creating a new one. Leave empty to use Terraform-created profile."
+  description = "Optional: Use an existing IAM Instance Profile for the EC2 instance instead of creating a new one."
   type        = string
   default     = ""
 }
-
-#####################################
-# Strapi Secrets
-#####################################
 
 variable "strapi_app_keys" {
   description = "Comma-separated list of secret keys for Strapi."
