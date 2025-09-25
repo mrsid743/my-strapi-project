@@ -7,10 +7,8 @@ WORKDIR /opt/app
 # Copy package.json and package-lock.json
 COPY package.json package-lock.json ./
 
-# FIX: Install a compatible version of AJV, ignoring peer dependency conflicts
-RUN npm install ajv@6 --legacy-peer-deps
-
 # Install dependencies using npm ci for reproducible builds, ignoring peer dependency conflicts
+# The 'ajv' version is now handled by the 'overrides' in package.json
 RUN npm ci --legacy-peer-deps
 
 # Copy the rest of the application source code
@@ -28,21 +26,19 @@ WORKDIR /opt/app
 # Copy package.json and package-lock.json from the build stage
 COPY package.json package-lock.json ./
 
-# FIX: Install a compatible version of AJV, ignoring peer dependency conflicts
-RUN npm install ajv@6 --legacy-peer-deps
-
 # Install only production dependencies, ignoring peer dependency conflicts
+# The 'ajv' version is now handled by the 'overrides' in package.json
 RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy the built application from the 'build' stage
-COPY --from=build /opt/app/dist ./dist
+COPY --from-build /opt/app/dist ./dist
 
 # Copy the Strapi configuration and other necessary folders from the 'build' stage
-COPY --from=build /opt/app/config ./config
-COPY --from=build /opt/app/database ./database
-COPY --from=build /opt/app/public ./public
-COPY --from=build /opt/app/src ./src
-COPY --from=build /opt/app/.strapi ./.strapi
+COPY --from-build /opt/app/config ./config
+COPY --from-build /opt/app/database ./database
+COPY --from-build /opt/app/public ./public
+COPY --from-build /opt/app/src ./src
+COPY --from-build /opt/app/.strapi ./.strapi
 
 
 # Set environment variables for Strapi
