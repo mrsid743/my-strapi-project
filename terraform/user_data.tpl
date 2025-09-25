@@ -1,18 +1,27 @@
 #!/bin/bash
+#####################################
+# Update & Install Dependencies
+#####################################
 yum update -y
 yum install -y docker unzip
 service docker start
 usermod -a -G docker ec2-user
 
+#####################################
 # Install AWS CLI v2
+#####################################
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 ./aws/install
 
+#####################################
 # Authenticate with ECR
+#####################################
 aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_repo_url}
 
-# Prepare Strapi container
+#####################################
+# Prepare Strapi Container
+#####################################
 docker volume create strapi_data
 docker stop strapi || true
 docker rm strapi || true
