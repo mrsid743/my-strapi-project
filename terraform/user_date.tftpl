@@ -1,73 +1,34 @@
-#####################################
-# AWS & Infrastructure
-#####################################
+#!/bin/bash
+# Update system and install Docker
+yum update -y
+yum install -y docker unzip
+service docker start
+usermod -a -G docker ec2-user
 
-variable "aws_region" {
-  description = "The AWS region to deploy resources in."
-  type        = string
-  default     = "ap-south-1"
-}
+# Install AWS CLI v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
 
-variable "ecr_repository_name" {
-  description = "The name of the ECR repository."
-  type        = string
-  default     = "siddhant-strapi"
-}
+# Authenticate with ECR
+aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_repo_url}
 
-variable "aws_key_pair_name" {
-  description = "The name of the EC2 key pair to use for SSH access."
-  type        = string
-  default     = "strapi-mumbai-key"
-}
+# Prepare Strapi container
+docker volume create strapi_data
+docker stop strapi || true
+docker rm strapi || true
 
-variable "ec2_instance_type" {
-  description = "The instance type for the EC2 server."
-  type        = string
-  default     = "t2.micro"
-}
-
-variable "image_tag" {
-  description = "The Docker image tag to deploy. This is passed from the CI workflow."
-  type        = string
-}
-
-variable "existing_iam_instance_profile_name" {
-  description = "The name of a pre-existing IAM Instance Profile for the EC2 instance. Leave empty to use the Terraform-created profile."
-  type        = string
-  default     = ""
-}
-
-#####################################
-# Strapi Application Secrets
-#####################################
-
-# These should be long, random, unique strings. Generate with:
-# openssl rand -base64 32
-
-variable "strapi_app_keys" {
-  description = "Comma-separated list of secret keys for Strapi."
-  type        = string
-  sensitive   = true
-  default     = "changeThisKey1,andThisKey2AsWell"
-}
-
-variable "strapi_api_token_salt" {
-  description = "Salt for Strapi API tokens."
-  type        = string
-  sensitive   = true
-  default     = "changeThisSalt"
-}
-
-variable "strapi_admin_jwt_secret" {
-  description = "JWT secret for the Strapi admin panel."
-  type        = string
-  sensitive   = true
-  default     = "changeThisAdminSecret"
-}
-
-variable "strapi_jwt_secret" {
-  description = "JWT secret for Strapi API users."
-  type        = string
-  sensitive   = true
-  default     = "changeThisJwtSecret"
-}
+docker run -d -p 1337:1337 \
+  --name strapi \
+  --restart always \
+  -e HOST="0.0.0.0" \
+  -e PORT="1337" \
+  -e NODE_ENV="production" \
+  -e APP_KEYS="${strapi_app_keys}" \
+  -e API_TOKEN_SALT="${strapi_api_token_salt}" \
+  -e ADMIN_JWT_SECRET="${strapi_admin_jwt_secret}" \
+  -e JWT_SECRET="${strapi_jwt_secret}" \
+  -e DATABASE_CLIENT="sqlite" \
+  -e DATABASE_FILENAME="/opt/app/data/data.db" \
+  -v strapi_data:/opt/app/data \
+  ${ecr_repo_url}:${image_tag}
