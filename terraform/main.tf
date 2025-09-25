@@ -1,86 +1,7 @@
-provider "aws" {
-  region = var.aws_region
-}
+#####################################
+# Data Sources
+#####################################
 
-# --- ECR ---
-# Create a private ECR repository to store the Strapi Docker images
-resource "aws_ecr_repository" "strapi_ecr_repo" {
-  name                 = var.ecr_repository_name
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = {
-    Name    = "${var.ecr_repository_name}-repo"
-    Project = "StrapiDeployment"
-  }
-}
-
-# --- Networking ---
-# Use the default VPC for simplicity
-data "aws_vpc" "default" {
-  default = true
-}
-
-# Get a list of public subnets in the default VPC
-data "aws_subnets" "default_public" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-  filter {
-    name   = "map-public-ip-on-launch"
-    values = ["true"]
-  }
-}
-
-# Create a security group to control traffic to the EC2 instance
-resource "aws_security_group" "strapi_sg" {
-  name        = "${var.ecr_repository_name}-sg"
-  description = "Allow SSH, HTTP, and Strapi traffic"
-  vpc_id      = data.aws_vpc.default.id
-
-  # Allow inbound SSH traffic from anywhere
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow inbound HTTP traffic from anywhere (for a load balancer or proxy later)
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow inbound Strapi traffic from anywhere
-  ingress {
-    from_port   = 1337
-    to_port     = 1337
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow all outbound traffic
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.ecr_repository_name}-security-group"
-  }
-}
-
-# --- EC2 Instance ---
-# Find the latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
   owners      = ["amazon"]
@@ -91,38 +12,125 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
-# Create the EC2 instance
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default_public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+#####################################
+# IAM Role & Policies
+#####################################
+
+resource "aws_iam_role" "ec2_ecr_full_access_role" {
+  name = "ec2_ecr_full_access_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Service = "ec2.amazonaws.com" },
+      Action   = "sts:AssumeRole"
+    }]
+  })
+}
+
+# Attach AWS-managed policies
+resource "aws_iam_role_policy_attachment" "ecr_full" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_full" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_ecr_full_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# IAM Instance Profile
+resource "aws_iam_instance_profile" "strapi_ec2_profile" {
+  name = "ec2_ecr_full_access_role_profile"
+  role = aws_iam_role.ec2_ecr_full_access_role.name
+}
+
+#####################################
+# Security Group
+#####################################
+
+resource "aws_security_group" "strapi_sg" {
+  name        = "strapi-sg"
+  description = "Allow inbound HTTP and Strapi traffic"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow Strapi"
+    from_port   = 1337
+    to_port     = 1337
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+#####################################
+# EC2 Instance
+#####################################
+
 resource "aws_instance" "strapi_server" {
   ami                         = data.aws_ami.amazon_linux_2.id
   instance_type               = var.ec2_instance_type
   key_name                    = var.aws_key_pair_name
-  # Use the pre-existing IAM instance profile provided via a variable
-  iam_instance_profile        = var.existing_iam_instance_profile_name
   vpc_security_group_ids      = [aws_security_group.strapi_sg.id]
-  # Launch in the first available public subnet
   subnet_id                   = element(data.aws_subnets.default_public.ids, 0)
   associate_public_ip_address = true
 
-  # Startup script to install Docker and run our Strapi container
+  # Use existing IAM profile if provided, else use the one created above
+  iam_instance_profile = var.existing_iam_instance_profile_name != "" ? var.existing_iam_instance_profile_name : aws_iam_instance_profile.strapi_ec2_profile.name
+
   user_data = <<-EOF
               #!/bin/bash
-              # Update system packages
               yum update -y
-              
-              # Install Docker
-              yum install -y docker
+              yum install -y docker unzip
               service docker start
               usermod -a -G docker ec2-user
-              
-              # Get ECR login token and login
-              # The EC2 instance role provides the necessary permissions
+
+              # Install AWS CLI v2
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+
+              # Authenticate with ECR
               aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${aws_ecr_repository.strapi_ecr_repo.repository_url}
-              
-              # Stop and remove any existing container named 'strapi'
+
+              # Prepare Strapi container
+              docker volume create strapi_data
               docker stop strapi || true
               docker rm strapi || true
-              
-              # Pull the specified image from ECR and run it
+
               docker run -d -p 1337:1337 \
                 --name strapi \
                 --restart always \
@@ -143,10 +151,7 @@ resource "aws_instance" "strapi_server" {
     Name = "Strapi-EC2-Server"
   }
 
-  # This lifecycle rule helps prevent issues if the user_data script changes.
-  # It forces a replacement of the instance, ensuring the new script runs.
   lifecycle {
     create_before_destroy = true
   }
 }
-
